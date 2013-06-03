@@ -1,13 +1,13 @@
-package com.github.darl
+package com.github.darl.tests
 
-import com.github.darl.simple.SimpleScalaGenerator
+import com.github.darl.translate.FlowScalaGenerator
 
 /**
  * User: Vladislav Dolbilov (darl@yandex-team.ru)
- * Date: 30.05.13 1:07
+ * Date: 30.05.13 12:42
  */
-object MainTest extends App {
-  val gen = new SimpleScalaGenerator
+object FlowGeneratorTest extends App {
+  val gen = new FlowScalaGenerator
 
   val res = gen.generate(
     """
@@ -21,7 +21,7 @@ object MainTest extends App {
       |}
       |
       |val a = random.from(100 to 999)
-      |val b = random.from(100 to 999)
+      |val b = random.from(100 to 1000)
       |val (g, steps) = gcd(a, b)
       |validate(g != 1)
       |validate(steps between (4 and 6))

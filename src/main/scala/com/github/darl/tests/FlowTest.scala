@@ -1,4 +1,4 @@
-package com.github.darl
+package com.github.darl.tests
 
 import com.github.darl.flow.Cell
 import com.github.darl.runtime.random
