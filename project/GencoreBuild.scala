@@ -13,7 +13,9 @@ object GencoreBuild extends Build {
       scalaVersion := "2.10.1",
       // add other settings here
       libraryDependencies += "org.scala-lang" % "scala-reflect" % "2.10.1",
-      libraryDependencies += "org.scala-lang" % "scala-compiler" % "2.10.1"
+      libraryDependencies += "org.scala-lang" % "scala-compiler" % "2.10.1",
+      libraryDependencies += "org.slf4j" % "slf4j-api" % "1.7.5",
+      libraryDependencies += "ch.qos.logback" % "logback-classic" % "1.0.11"
     )
   )
 }
