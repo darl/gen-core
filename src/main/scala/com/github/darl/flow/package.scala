@@ -1,9 +1,10 @@
 package com.github.darl
 
 import com.github.darl.retry.{RetryStrategy, Retry}
+import com.github.darl.util.Logging
 import collection.mutable.ArrayBuffer
 
-package object flow {
+package object flow extends Logging {
 
   private[flow] class ConstCell[T](const: T, name: String) extends Cell[T] {
     def apply() = const
@@ -56,6 +57,7 @@ package object flow {
           val newCell = Retry.tryComplete(c, this.invalidate(), RetryStrategy())
           println(s"calculated: $name = ${newCell()}")
           cell = Some(newCell)
+          newCell.subscribe(this)
           newCell.apply()
       }
     }

@@ -6,7 +6,7 @@ import scala.util.{Random => sr}
  * User: Vladislav Dolbilov (darl@yandex-team.ru)
  * Date: 30.05.13 1:31
  */
-object random { p =>
+object random {
   private val threadLocalRand = new ThreadLocal[sr] {
     override def initialValue = new sr()
   }
@@ -40,13 +40,4 @@ object random { p =>
 
   def elements[T](coll: Seq[T], sizeRange: Range): Seq[T] =
     elements(coll, size = from(sizeRange))
-
-
-  implicit class RichSeqRandoms[T](val coll: Seq[T]) {
-    def shuffle: Seq[T] = p.shuffle(coll)
-    def subset(size: Int): Seq[T] = p.subset(coll, size)
-    def subset(sizeRange: Range): Seq[T] = p.subset(coll, sizeRange)
-    def elements(size: Int): Seq[T] = p.elements(coll, size)
-    def elements(sizeRange: Range): Seq[T] = p.elements(coll, sizeRange)
-  }
 }

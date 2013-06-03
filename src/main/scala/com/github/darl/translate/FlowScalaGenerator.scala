@@ -7,12 +7,13 @@ import scala.tools.reflect._
 import com.github.darl.runtime.Problem
 import com.github.darl.flow.Cell
 import scala.collection.mutable.ArrayBuffer
+import com.github.darl.util.Logging
 
 /**
  * User: Vladislav Dolbilov (darl@yandex-team.ru)
  * Date: 30.05.13 12:32
  */
-class FlowScalaGenerator extends Generator with Retry {
+class FlowScalaGenerator extends Generator with Retry with Logging {
   def generate(source: String, params: Map[String, String]) = {
     val ru = u.runtimeMirror(getClass.getClassLoader)
     val tb = ToolBox(ru).mkToolBox(mkConsoleFrontEnd())
@@ -24,8 +25,8 @@ class FlowScalaGenerator extends Generator with Retry {
 
     val flowTree = translate(tree)(tb)
 
-    println("Original tree: \n" + u.show(tree))
-    println("Translate result: \n" + u.show(flowTree))
+    logger.debug("Original tree: \n" + u.show(tree))
+    logger.debug("Translate result: \n" + u.show(flowTree))
 
     val block: () => Any = tb.compile(flowTree)
 

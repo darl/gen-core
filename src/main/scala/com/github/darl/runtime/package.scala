@@ -31,4 +31,12 @@ package object runtime {
      */
     def between(range: AndRange): Boolean = a >= range.from && a <= range.to
   }
+
+  implicit class RichSeqRandoms[T](val coll: Seq[T]) {
+    def shuffle: Seq[T] = random.shuffle(coll)
+    def subset(size: Int): Seq[T] = random.subset(coll, size)
+    def subset(sizeRange: Range): Seq[T] = random.subset(coll, sizeRange)
+    def elements(size: Int): Seq[T] = random.elements(coll, size)
+    def elements(sizeRange: Range): Seq[T] = random.elements(coll, sizeRange)
+  }
 }

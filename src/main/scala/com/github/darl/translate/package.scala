@@ -1,9 +1,10 @@
 package com.github.darl
 
+import com.github.darl.util.Logging
 import scala.tools.reflect.ToolBox
 import scala.collection.mutable.ListBuffer
 
-package object translate {
+package object translate extends Logging {
 
   import reflect.runtime.{universe => u}
   import u._
@@ -58,44 +59,39 @@ package object translate {
         cellFlatAppTree(rewrittenIf, tree, cells)
     }
 
+    def translateMatchCase(scope: Scope, tree: CaseDef, bodyTranslator: (Scope, Tree) => (Tree, List[TermName])): (CaseDef, List[TermName]) = tree match {
+      case CaseDef(pattern, guard, body) =>
+        val (rewrittenPattern, patternCells) = extractCells(scope, pattern)
+
+        //extracting binds from `<empty> match {case <pattern> if <guard> => <empty>}` like syntax tree
+        val oneCaseMatch = Match(EmptyTree, List(CaseDef(pattern, guard, EmptyTree)))
+        val binds = extractBinds(scope, oneCaseMatch)
+
+        //new scope with extracted binds
+        val newScope = binds.foldLeft(scope)(_ + _)
+
+        val (rewrittenGuard, guardCells) = extractCells(newScope, guard)
+
+        val (rewrittenBody, bodyCells) = bodyTranslator(newScope, body)
+        (
+          CaseDef(rewrittenPattern, rewrittenGuard, rewrittenBody),
+          (patternCells ++ guardCells ++ bodyCells).distinct
+        )
+    }
+
     def translateMatch(scope: Scope, tree: Match): Tree = {
-      def translateCase(scope: Scope, selector: Tree, tree: CaseDef): (CaseDef, List[TermName]) = tree match {
-        case CaseDef(pattern, guard, body) =>
-          val (rewrittenPattern, patternCells) = extractCells(scope, pattern)
-
-          //extracting binds from `<empty> match {case <pattern> if <guard> => <empty>}` like syntax tree
-          val oneCaseMatch = Match(EmptyTree, List(CaseDef(pattern, guard, EmptyTree)))
-          val binds = extractBinds(scope, oneCaseMatch)
-
-          //new scope with extracted binds
-          val newScope = binds.foldLeft(scope)(_ + _)
-
-          val (rewrittenGuard, guardCells) = extractCells(newScope, guard)
-
-          val rewrittenBody = translate(newScope, body)
-          (
-            CaseDef(rewrittenPattern, rewrittenGuard, rewrittenBody),
-            (patternCells ++ guardCells).distinct
-          )
+      def translateCase(scope: Scope, tree: CaseDef): (CaseDef, List[TermName]) = {
+        translateMatchCase(scope, tree, (scope, body) => {
+          translate(scope, body) -> Nil
+        })
       }
 
       tree match {
-        case Match(EmptyTree, cases) =>
-          // used as argument of type `PartialFunction`
-          // currently cannot be converted to Cell
-          val noCells = cases.forall { cse =>
-            val (_, cells) = extractCells(scope.enter, cse)
-            cells.isEmpty
-          }
-          if (noCells)
-            Match(EmptyTree, cases)
-          else
-            throw new TranslateException("Cannot convert anonymous partial function", tree.pos)
         case Match(selector, cases) =>
           val tmpName = freshTermName("match_selector")
 
           val rewrittenSelector = ValDef(NoMods, tmpName, TypeTree(NoType), translate(scope.enter, selector))
-          val (rewrittenCases, deps) = cases.map(cse => translateCase(scope.enter, selector, cse)).unzip
+          val (rewrittenCases, deps) = cases.map(cse => translateCase(scope.enter, cse)).unzip
           val rewrittenMatch = Match(Apply(Ident(tmpName), List()), rewrittenCases)
 
           Block(
@@ -138,6 +134,7 @@ package object translate {
             val (rewrittenArg, cells) = extractCells(scope, arg)
             scope -> cellValidate(rewrittenArg, cells)
           case _ =>
+            logger.warn("skipped tree: " + tree)
             scope.stat(tree) -> translate(scope, tree)
         }
 
@@ -173,22 +170,38 @@ package object translate {
         }
       }
 
-      def rewriteArg(scope: Scope, arg: Tree): (Tree, List[ValDef]) = arg match {
-        case Literal(_) => arg -> Nil
-        case Function(_, _) => arg -> Nil
+      def rewriteArg(scope: Scope, arg: Tree): (Tree, List[ValDef], List[TermName]) = arg match {
+        case Literal(_) => (arg, Nil, Nil)
+        case Function(as, body) =>
+          val newScope = as.foldLeft(scope) {
+            case (sc, vd) => sc + Bind.fromValDef(scope, vd, isCell = false)
+          }
+          val (rewrittenBody, cells) = extractCells(newScope, body)
+          (Function(as, rewrittenBody), Nil, cells)
+        case Match(EmptyTree, cases) =>
+          def translateCase(scope: Scope, tree: CaseDef): (CaseDef, List[TermName]) = {
+            translateMatchCase(scope, tree, (scope, body) => {
+              extractCells(scope, body)
+            })
+          }
+          val (rewrittenCases, cells) = cases.map { cse =>
+            translateCase(scope.enter, cse)
+          }.unzip
+
+          (Match(EmptyTree, rewrittenCases), Nil, cells.flatten.toList)
         case _ =>
-          val tmp = freshTermName("apply_arg")
-          Apply(Ident(tmp), Nil) -> List(ValDef(NoMods, tmp, TypeTree(NoType), translate(scope.enter, arg)))
+          val tmp = freshTermName("arg")
+          (Apply(Ident(tmp), Nil), List(ValDef(NoMods, tmp, TypeTree(NoType), translate(scope.enter, arg))), Nil)
       }
 
-      def rewriteArgs(scope: Scope, args: List[Tree]): (List[Tree], List[List[ValDef]]) = {
+      def rewriteArgs(scope: Scope, args: List[Tree]): (List[Tree], List[List[ValDef]], List[List[TermName]]) = {
         args.map {
           case AssignOrNamedArg(name, arg) =>
-            val (newArg, defs) = rewriteArg(scope, arg)
-            (AssignOrNamedArg(name, newArg): Tree) -> defs
+            val (newArg, defs, dependencies) = rewriteArg(scope, arg)
+            ((AssignOrNamedArg(name, newArg): Tree), defs, dependencies)
           case arg =>
             rewriteArg(scope, arg)
-        }.unzip
+        }.unzip3
       }
 
       tree match {
@@ -205,10 +218,10 @@ package object translate {
           )
         case Apply(fun, args) =>
           val (rewrittenFun, valDefFun) = rewriteFun(scope, fun)
-          val (rewrittenArgs, valDefArgs) = rewriteArgs(scope, args)
+          val (rewrittenArgs, valDefArgs, dependencies) = rewriteArgs(scope, args)
 
           val valDefs = valDefFun ::: valDefArgs.flatten
-          val cells = valDefs.map(_.name)
+          val cells = (valDefs.map(_.name) ::: dependencies.flatten).distinct
 
           Block(
             valDefs,
@@ -243,6 +256,7 @@ package object translate {
       case i @ Ident(name) if name.isTermName => cellAppTree(i, i, Nil)
       case EmptyTree => EmptyTree
       case Annotated(annotation, t) => Annotated(annotation, translate(scope, t))
+      case ta: TypeApply => cellAppTree(tree, tree, Nil)
       case _ => throw new TranslateException(s"Unsupported tree: ${showRaw(tree)}", tree.pos)
     }
 

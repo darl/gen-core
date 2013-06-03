@@ -1,17 +1,26 @@
 package com.github.darl.translate
 
 import com.github.darl.flow.Cell
+import com.github.darl.util.Logging
 import java.util.concurrent.atomic.AtomicInteger
 import scala.collection.mutable.ListBuffer
 import scala.reflect.runtime.{universe => u}
 import scala.tools.reflect.ToolBox
 import u._
 
-object utils {
+object utils extends Logging {
 
   case class Bind(name: TermName, tpt: TypeTree, isCell: Boolean) {
     def placeholder: Tree = ValDef(Modifiers(), name, tpt, Ident(newTermName("???").encodedName))   // val $name: $tpt = ???
   }
+  object Bind {
+    def fromValDef[U <: u.type](scope: Scope, tree: ValDef, isCell: Boolean)(implicit tb: ToolBox[U]) = tree match {
+      case ValDef(mods, name, tpt, rhs) =>
+        val tpe = typeCheck(scope, rhs).tpe
+        Bind(name, TypeTree(tpe), isCell)
+    }
+  }
+
   type Frame = List[Bind]
   type Statements = List[Tree]
 
