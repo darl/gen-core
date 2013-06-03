@@ -1,5 +1,8 @@
 package com.github.darl.flow
 
+import util.DynamicVariable
+import collection.mutable
+
 /**
  * Base trait to store voidable value
  */
@@ -18,9 +21,17 @@ trait Cell[T] {
 }
 
 object Cell {
-  def constant[T](c: T): Cell[T] = new ConstCell[T](c)
+  def constant[T](c: T, name: String): Cell[T] = new ConstCell[T](c, name)
 
-  def app[T](c: => T)(deps: Cell[_]*): Cell[T] = new AppCell[T](c)(deps)
+  def app[T](c: => T, name: String)(deps: Cell[_]*): Cell[T] = new AppCell[T](c, name)(deps)
 
-  def flatApp[T](c: => Cell[T])(deps: Cell[_]*): Cell[T] = new FlatApp[T](c)(deps)
+  def flatApp[T](c: => Cell[T], name: String)(deps: Cell[_]*): Cell[T] = new FlatApp[T](c, name)(deps)
+
+  val validators = new DynamicVariable[mutable.ArrayBuffer[Cell[Boolean]]](null)
+
+  def validate(c: => Boolean, name: String)(deps: Cell[_]*): Cell[Boolean] = {
+    val validator = new AppCell[Boolean](c, name)(deps)
+    validators.value += validator
+    validator
+  }
 }

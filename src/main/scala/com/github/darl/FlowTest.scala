@@ -8,12 +8,12 @@ import com.github.darl.runtime.random
  * Date: 30.05.13 1:32
  */
 object FlowTest extends App {
-  val a = Cell.app(random.from(1 to 10))()
-  val b = Cell.app(random.from(1 to 10))()
+  val a = Cell.app(random.from(1 to 10), "a")()
+  val b = Cell.app(random.from(1 to 10), "b")()
 
-  val c = Cell.app(a() + b())(a, b)
-  val d = Cell.constant(10)
-  val e = Cell.app(c() + d())(c, d)
+  val c = Cell.app(a() + b(), "c")(a, b)
+  val d = Cell.constant(10, "d")
+  val e = Cell.app(c() + d(), "e")(c, d)
 
   while(c() > 3) {
     c.invalidate()

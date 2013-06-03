@@ -1,17 +1,18 @@
 package com.github.darl
 
-import scala.collection.mutable.ArrayBuffer
+import com.github.darl.retry.{RetryStrategy, Retry}
+import collection.mutable.ArrayBuffer
 
 package object flow {
 
-  private[flow] class ConstCell[T](const: T) extends Cell[T] {
+  private[flow] class ConstCell[T](const: T, name: String) extends Cell[T] {
     def apply() = const
     def clear() {}
     def invalidate() {}
     def subscribe(c: Cell[_]) {}
   }
 
-  private[flow] class AppCell[T](c: => T)(deps: Seq[Cell[_]]) extends Cell[T] {
+  private[flow] class AppCell[T](c: => T, name: String)(deps: Seq[Cell[_]]) extends Cell[T] {
     deps.foreach(_.subscribe(this))
 
     val subscribers = ArrayBuffer.empty[Cell[_]]
@@ -21,7 +22,8 @@ package object flow {
       value match {
         case Some(v) => v
         case None =>
-          val newVal = c
+          val newVal = Retry.tryComplete(c, this.invalidate(), RetryStrategy())
+          println(s"calculated: $name = $newVal")
           value = Some(newVal)
           newVal
       }
@@ -41,7 +43,7 @@ package object flow {
     }
   }
 
-  private[flow] class FlatApp[T](c: => Cell[T])(deps: Seq[Cell[_]]) extends Cell[T] {
+  private[flow] class FlatApp[T](c: => Cell[T], name: String)(deps: Seq[Cell[_]]) extends Cell[T] {
     deps.foreach(_.subscribe(this))
 
     val subscribers = ArrayBuffer.empty[Cell[_]]
@@ -51,7 +53,8 @@ package object flow {
       cell match {
         case Some(ce) => ce.apply()
         case None =>
-          val newCell = c
+          val newCell = Retry.tryComplete(c, this.invalidate(), RetryStrategy())
+          println(s"calculated: $name = ${newCell()}")
           cell = Some(newCell)
           newCell.apply()
       }
