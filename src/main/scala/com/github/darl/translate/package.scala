@@ -233,7 +233,7 @@ package object translate extends Logging {
       }
     }
 
-    def translateFunction(scope: Scope, tree: Function): Tree = {
+    def translateFunction(scope: Scope, tree: Function): Tree = tree match {
       case Function(as, body) =>
         val newScope = as.foldLeft(scope) {
           case (sc, vd) => sc + Bind.fromValDef(scope, vd, isCell = false)
