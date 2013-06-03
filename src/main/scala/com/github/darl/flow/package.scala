@@ -11,6 +11,7 @@ package object flow extends Logging {
     def clear() {}
     def invalidate() {}
     def subscribe(c: Cell[_]) {}
+    def unsubscribe(c: Cell[_]) {}
   }
 
   private[flow] class AppCell[T](c: => T, name: String)(deps: Seq[Cell[_]]) extends Cell[T] {
@@ -42,6 +43,9 @@ package object flow extends Logging {
     def subscribe(c: Cell[_]) {
       subscribers += c
     }
+    def unsubscribe(c: Cell[_]) {
+      subscribers -= c
+    }
   }
 
   private[flow] class FlatApp[T](c: => Cell[T], name: String)(deps: Seq[Cell[_]]) extends Cell[T] {
@@ -63,7 +67,10 @@ package object flow extends Logging {
     }
 
     def clear() {
-      cell.foreach(_.clear())
+      cell.foreach { c =>
+        c.unsubscribe(this)
+        c.clear()
+      }
       cell = None
       subscribers.foreach(_.clear())
     }
@@ -76,6 +83,9 @@ package object flow extends Logging {
 
     def subscribe(c: Cell[_]) {
       subscribers += c
+    }
+    def unsubscribe(c: Cell[_]) {
+      subscribers -= c
     }
   }
 

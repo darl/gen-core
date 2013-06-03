@@ -18,6 +18,9 @@ trait Cell[T] {
 
   /** subscribe on this cell clears */
   def subscribe(c: Cell[_])
+
+  /** subscribe on this cell clears */
+  def unsubscribe(c: Cell[_])
 }
 
 object Cell {
