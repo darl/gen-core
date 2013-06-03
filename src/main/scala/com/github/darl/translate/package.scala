@@ -233,6 +233,15 @@ package object translate extends Logging {
       }
     }
 
+    def translateFunction(scope: Scope, tree: Function): Tree = {
+      case Function(as, body) =>
+        val newScope = as.foldLeft(scope) {
+          case (sc, vd) => sc + Bind.fromValDef(scope, vd, isCell = false)
+        }
+        val (rewrittenBody, cells) = extractCells(newScope, body)
+        cellAppTree(Function(as, rewrittenBody), tree, cells)
+    }
+
     object Pure {
       def unapply(tree: Tree): Option[Tree] = tree match {
         case Apply(Ident(name), List(arg)) if name.decoded == "pure" => Some(arg)
@@ -257,6 +266,7 @@ package object translate extends Logging {
       case EmptyTree => EmptyTree
       case Annotated(annotation, t) => Annotated(annotation, translate(scope, t))
       case ta: TypeApply => cellAppTree(tree, tree, Nil)
+      case func: Function => translateFunction(scope.enter, func)
       case _ => throw new TranslateException(s"Unsupported tree: ${showRaw(tree)}", tree.pos)
     }
 
